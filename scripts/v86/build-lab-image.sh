@@ -18,6 +18,11 @@ bash "$V86_DIR/download-bios.sh"
 
 mkdir -p "$IMAGES" "$OUT" "$V86_DIR/staging/opt-lab"
 
+if [[ "${V86_SKIP_IF_PRESENT:-}" == "1" ]] && [[ -f "$OUT/manifest.json" ]] && [[ -f "$OUT/fs.json" ]] && [[ -d "$OUT/flat" ]]; then
+  echo "v86 lab rootfs already present — skipping build (V86_SKIP_IF_PRESENT=1)"
+  exit 0
+fi
+
 # Stage compose/kubectl simulators (podman handles build/run).
 cp "$ROOT/src/lessons/containerization/programs/fake-compose.sh" "$V86_DIR/staging/opt-lab/compose.sh"
 cp "$ROOT/src/lessons/containerization/programs/fake-kubectl.sh" "$V86_DIR/staging/opt-lab/kubectl.sh"
@@ -53,10 +58,7 @@ mkdir -p "$FLAT"
 python3 "$TOOLS/tools/fs2json.py" --out "$FSJSON" "$ROOTFS_TAR"
 python3 "$TOOLS/tools/copy-to-sha256.py" "$ROOTFS_TAR" "$FLAT"
 
-# v86 expects baseurl to directory containing fs.json + flat/
-mv "$FSJSON" "$OUT/fs.json"
-rm -rf "$OUT/flat"
-mv "$FLAT" "$OUT/flat"
+# fs.json and flat/ are already in $OUT — no move needed.
 
 BYTES=$(wc -c < "$ROOTFS_TAR" | tr -d ' ')
 CHUNK=256000
@@ -64,13 +66,13 @@ PARTS=$(( (BYTES + CHUNK - 1) / CHUNK ))
 
 cat > "$OUT/manifest.json" <<EOF
 {
-  "version": 1,
+  "version": 3,
   "profile": "alpine-podman-lab",
   "rootfsBytes": $BYTES,
   "chunkSize": $CHUNK,
-  "baseurl": "/v86/lab-rootfs",
+  "baseurl": ".",
   "memoryMb": 384,
-  "cmdline": "rw root=/dev/root rootfstype=9p rootflags=trans=virtio,cache=loose console=ttyS0"
+  "cmdline": "rw root=host9p rootfstype=9p rootflags=trans=virtio,cache=loose modules=virtio_pci,9p,9pnet,9pnet_virtio console=ttyS0 tsc=reliable init_on_free=on"
 }
 EOF
 

@@ -25,16 +25,21 @@ ContainerShell
 | 2 | Alpine i386 image with `podman`, `podman-docker`, lab tree | Done (`scripts/v86/`) |
 | 3 | VM snapshot cache (IndexedDB), boot progress UI | Done |
 
+**9p root:** kernel cmdline must use `root=host9p` (not `root=/dev/root`). Alpine **3.18.6** + edge `mkinitfs` (with `--allow-untrusted`) bundles `9pnet_virtio` in initramfs. Manifest **v3** loads `modules=virtio_pci,9p,9pnet,9pnet_virtio` at boot.
+
 ## Image build
 
-Podman requires the custom Alpine rootfs (not bundled in git — ~50–80 MB chunked).
+Podman requires the custom Alpine rootfs (~50–80 MB chunked). It is **not committed to git**; deploy CI builds it and serves it as a pre-built asset.
 
 ```bash
-bun run v86:download-bios    # seabios + vgabios → public/v86/bios/
-bun run v86:build-image      # Docker required: Alpine i386 + podman → public/v86/lab-rootfs/
+bun run v86:download-bios    # seabios + vgabios → public/v86/bios/ (committed)
+bun run v86:fetch-lab-image  # download pre-built image for local dev
+bun run v86:build-image      # optional: rebuild with Docker
 ```
 
-Without `public/v86/lab-rootfs/manifest.json`, the app falls back to Wasmer automatically.
+Without a reachable `manifest.json` (local, same-origin, or pre-built CDN), the app falls back to Wasmer.
+
+**CI cache:** deploy restores `public/v86/lab-rootfs/` from GitHub Actions cache (keyed on Dockerfile, lab-init, and lab files). Rebuilds only when those inputs change.
 
 ## Guest layout
 

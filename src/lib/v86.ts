@@ -5,6 +5,7 @@ import {
   fetchLabManifest,
   labRootfsFilesystem,
   V86_BIOS,
+  V86_LAB_UNAVAILABLE_HINT,
 } from './v86Assets.ts'
 
 export type V86LoadPhase = 'idle' | 'loading' | 'ready' | 'error' | 'unsupported'
@@ -14,7 +15,7 @@ type ProgressListener = (message: string) => void
 const listeners = new Set<ProgressListener>()
 const SNAPSHOT_DB = 'developer-basics-v86'
 const SNAPSHOT_STORE = 'snapshots'
-const SNAPSHOT_KEY = 'alpine-podman-lab'
+const SNAPSHOT_KEY = 'alpine-podman-lab-v3'
 
 let initPromise: Promise<void> | null = null
 
@@ -33,7 +34,7 @@ export function resetV86Load(): void {
 
 export async function isV86LabImageAvailable(): Promise<boolean> {
   const manifest = await fetchLabManifest()
-  return manifest !== null && manifest.profile === 'alpine-podman-lab'
+  return manifest !== null && manifest.profile === 'alpine-podman-lab' && manifest.version >= 3
 }
 
 async function openSnapshotDb(): Promise<IDBDatabase> {
@@ -96,6 +97,26 @@ function waitForLayout(container: HTMLElement): Promise<void> {
   })
 }
 
+function waitForEmulatorLoaded(
+  emulator: { add_listener: (event: string, fn: () => void) => void },
+  timeoutMs: number,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(
+      () => reject(new Error('Timed out waiting for v86 emulator to initialize')),
+      timeoutMs,
+    )
+    emulator.add_listener('emulator-loaded', () => {
+      window.clearTimeout(timer)
+      resolve()
+    })
+  })
+}
+
+function createV86Emulator(options: Record<string, unknown>) {
+  return new V86Sdk.V86(options)
+}
+
 function waitForSerialPrompt(
   emulator: { add_listener: (event: string, fn: (...args: unknown[]) => void) => void },
   timeoutMs: number,
@@ -132,9 +153,7 @@ export async function runV86Terminal(
 
   const manifest = await fetchLabManifest()
   if (!manifest) {
-    throw new Error(
-      'v86 Podman lab image not found. Run: bun run v86:build-image (requires Docker).',
-    )
+    throw new Error(V86_LAB_UNAVAILABLE_HINT)
   }
 
   report('Loading v86 emulator…')
@@ -188,7 +207,7 @@ export async function runV86Terminal(
     report('Booting Alpine Linux (first boot may take up to a minute)…')
   }
 
-  const emulator = new V86Sdk.V86(options)
+  const emulator = createV86Emulator(options)
 
   emulator.add_listener('serial0-output-byte', (byte: unknown) => {
     const code = typeof byte === 'number' ? byte : 0
@@ -200,7 +219,9 @@ export async function runV86Terminal(
     emulator.serial0_send(data)
   })
 
-  await emulator.run()
+  // WASM + BIOS + rootfs load asynchronously; run() before init causes
+  // "Cannot read properties of undefined (reading 'run')". autostart boots the CPU.
+  await waitForEmulatorLoaded(emulator, 120_000)
 
   if (!snapshot) {
     try {
@@ -251,7 +272,7 @@ export async function ensureV86(onProgress?: (msg: string) => void): Promise<voi
     initPromise = (async () => {
       const ok = await isV86LabImageAvailable()
       if (!ok) {
-        throw new Error('v86 lab image not built')
+        throw new Error('v86 lab image not available')
       }
       report('v86 lab image found.')
     })().catch((err) => {

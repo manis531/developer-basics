@@ -7,7 +7,7 @@ test.describe('shell runtime', () => {
     await page.goto(SHELL_LESSON)
     const text = await page.locator('.container-shell').innerText()
     expect(text).toMatch(/podman build/i)
-    expect(text).toMatch(/v86:build-image/i)
+    expect(text).toMatch(/pre-built/i)
     expect(text).toMatch(/Shell mode/i)
   })
 
@@ -16,13 +16,25 @@ test.describe('shell runtime', () => {
     await page.goto(SHELL_LESSON)
     const toggle = page.locator('.shell-backend-toggle')
     await expect(toggle).toBeVisible()
-    await expect(toggle.getByRole('button', { name: /Wasmer shell/i })).toBeVisible()
-    await expect(toggle.getByRole('button', { name: /v86 Podman VM/i })).toBeVisible()
-    await toggle.getByRole('button', { name: /Wasmer shell/i }).click()
-    await expect(toggle.getByRole('button', { name: /Wasmer shell/i })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
+    const wasmerBtn = toggle.getByRole('button', { name: /Wasmer shell/i })
+    const v86Btn = toggle.getByRole('button', { name: /v86 Podman VM/i })
+    await expect(wasmerBtn).toBeVisible()
+    await expect(v86Btn).toBeVisible()
+    await expect(v86Btn).toBeEnabled()
+    await wasmerBtn.click()
+    await expect(wasmerBtn).toHaveAttribute('aria-pressed', 'true')
+    if (await v86Btn.isEnabled()) {
+      await v86Btn.click()
+      await expect(v86Btn).toHaveAttribute('aria-pressed', 'true')
+    }
+  })
+
+  test('v86 option is selectable even when lab image is missing', async ({ page }) => {
+    await page.goto(SHELL_LESSON)
+    const v86Btn = page.getByRole('button', { name: /v86 Podman VM/i })
+    await expect(v86Btn).toBeEnabled()
+    await v86Btn.click()
+    await expect(v86Btn).toHaveAttribute('aria-pressed', 'true')
   })
 })
 

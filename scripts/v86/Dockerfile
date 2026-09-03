@@ -1,12 +1,18 @@
 # Alpine i386 rootfs for v86 with Podman (container lab).
-# Based on https://github.com/copy/v86/tree/master/tools/docker/alpine
-FROM docker.io/i386/alpine:3.21.0
+# Pin 3.18.x — v86 9p root is unreliable on Alpine 3.19+ (kernel 6.6+).
+# See: https://github.com/copy/v86/discussions/989
+FROM docker.io/i386/alpine:3.18.6
 
 ENV KERNEL=virt
-ENV ADDPKGS="bash curl podman podman-docker podman-compose"
+# compose is simulated via /opt/lab/compose.sh (not in Alpine 3.18 repos).
+ENV ADDPKGS="bash curl podman podman-docker"
 
 RUN apk add --no-cache openrc alpine-base agetty alpine-conf \
     linux-$KERNEL linux-firmware-none $ADDPKGS
+
+# 3.18's mkinitfs lacks 9p feature files — install edge mkinitfs before initramfs generation.
+RUN apk add --no-cache --allow-untrusted --upgrade mkinitfs \
+    --repository=https://dl-cdn.alpinelinux.org/alpine/edge/main
 
 RUN sed -i 's/getty 38400 tty1/agetty --autologin root tty1 linux/' /etc/inittab
 RUN echo 'ttyS0::respawn:/sbin/agetty --autologin root -s ttyS0 115200 vt100' >> /etc/inittab
@@ -26,4 +32,5 @@ COPY lab-init.sh /etc/profile.d/lab-init.sh
 COPY lab/ /home/lab/
 COPY opt-lab/ /opt/lab/
 
-RUN mkinitfs -F "base virtio 9p" $(cat /usr/share/kernel/$KERNEL/kernel.release)
+# Initramfs must include 9p/virtio modules for v86 root=host9p (requires edge mkinitfs above).
+RUN mkinitfs -F "base virtio 9p" "$(cat /usr/share/kernel/$KERNEL/kernel.release)"
