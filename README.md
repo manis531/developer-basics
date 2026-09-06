@@ -12,6 +12,8 @@ playgrounds, and runnable Python labs via Pyodide.
 See [`docs/sitemap.md`](docs/sitemap.md) for the full chapter index (regenerate
 with `bun run sitemap` after editing `src/lessons/meta.ts`).
 
+**Runtime architecture:** [open the interactive map](https://manishsharma004.github.io/developer-basics/architecture/developer-basics-runtime.architecture.html) on GitHub Pages (static file — no `#/` in the URL), or see [`docs/architecture/README.md`](docs/architecture/README.md) to regenerate with [Archify](https://github.com/tt-a1i/archify).
+
 ## Features
 
 - **Progress tracking** — read state, quizzes, and capstone steps in IndexedDB (export/import supported)
@@ -63,7 +65,9 @@ src/
     <topic>/                 # one folder per chapter
   theme/                     # color themes (persisted)
 docs/sitemap.md              # full knowledge index (generated)
+docs/architecture/           # Archify runtime map (JSON + HTML)
 scripts/generate-sitemap.mjs # sitemap generator
+scripts/architecture-deliver.sh
 ```
 
 Add a new lesson by creating a component, registering it in `src/lessons/meta.ts`
